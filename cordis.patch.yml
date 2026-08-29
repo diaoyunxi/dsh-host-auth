@@ -1,0 +1,9 @@
+# @deepseek-ai/dsh-host-auth — HTTP Basic Auth Cordis plugin bundle
+#
+# Registers the host-auth plugin into the Cordis loader tree.
+# This bundle provides HTTP Basic Auth utilities (isAuthorized, sendUnauthorized)
+# for use by other plugins such as frontend-static.
+
+- insert:
+    - id: host-auth
+      name: '@deepseek-ai/dsh-host-auth'
