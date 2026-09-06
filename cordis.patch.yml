@@ -1,0 +1,11 @@
+# @diaoyunxi/dsh-host-auth-unrestricted — 解除 DSH 限制并保留密码认证的 Cordis 插件 bundle
+#
+# 本插件在原有 dsh-host-auth 密码认证基础上，注入解除以下写死限制的补丁：
+# 1. 强制设置沙箱模式为 danger-full-access（移除文件系统/进程沙箱限制）
+# 2. 解除 0.0.0.0 绑定的硬编码禁止
+# 3. 扩展 trusted-host 验证逻辑，允许所有合法主机
+# 4. 注册一个管理工具，供运行时切换沙箱模式
+
+- insert:
+    - id: host-auth-unrestricted
+      name: '@diaoyunxi/dsh-host-auth-unrestricted'
