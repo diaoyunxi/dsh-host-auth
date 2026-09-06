@@ -1,6 +1,6 @@
 {
   "name": "@diaoyunxi/dsh-host-auth-unrestricted",
-  "description": "解除 DeepSeek Harness 写死限制的认证插件：保留密码认证，移除所有探查到的访问限制",
+  "description": "解除 DeepSeek Harness 写死限制（0.0.0.0 绑定）的认证插件，保留密码认证和 token/cookie 流程",
   "version": "0.1.0-rc.1",
   "publishConfig": {
     "access": "public"
