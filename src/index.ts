@@ -187,12 +187,13 @@ export function apply(ctx: Context): void {
   // 第三步：注册全局认证函数供其他模块调用
   ctx.effect(() => {
     // 将认证函数挂载到全局，供外部使用
-    globalThis.__DSH_AUTH_UNRESTRICTED__ = {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(globalThis as Record<string, unknown>).__DSH_AUTH_UNRESTRICTED__ = {
       isAuthorized,
       sendUnauthorized,
     }
     return () => {
-      delete globalThis.__DSH_AUTH_UNRESTRICTED__
+      delete (globalThis as Record<string, unknown>).__DSH_AUTH_UNRESTRICTED__
     }
   })
 }

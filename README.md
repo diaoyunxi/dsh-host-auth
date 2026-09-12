@@ -1,89 +1,112 @@
-# @diaoyunxi/dsh-host-auth-unrestricted
+# @deepseek-ai/dsh-host-auth
 
-DeepSeek Harness Web GUI 的解除绑定限制认证插件。
+HTTP Basic Auth plugin for DeepSeek Harness Web GUI with binding restriction removal.
 
-## 概述
+## Overview
 
-本插件解除 DeepSeek Harness 中探查到的写死限制，并保留原有的认证逻辑。
+This package provides:
 
-## 探查到的限制及解除方案
+1. **HTTP Basic Auth utilities** for credentials validation and 401 response generation
+2. **Binding restriction removal** — allows `0.0.0.0` host binding (normally restricted)
+3. **Trusted hosts bypass** — skip authentication when accessing from trusted domains
 
-| 限制位置 | 限制内容 | 解除方式 |
-|---------|---------|---------|
-| `dsh-web-app/lib/startup.js:40` | 硬编码禁止 `0.0.0.0` 绑定 | 移除限制检查，允许任意绑定 |
+The credentials are verified server-side only — the browser handles the
+authentication dialog automatically via HTTP Basic Auth. No credentials are
+ever exposed in the frontend code.
 
-## 保留的认证逻辑
-
-- ✅ HTTP Basic Auth 密码认证（`isAuthorized`, `sendUnauthorized`）
-- ✅ browser-session token/cookie 认证流程
-- ✅ 首次访问：URL 携带 `?token=<launch_token>`，服务器验证后设置 cookie 并重定向
-- ✅ 后续访问：携带 cookie，服务器验证 cookie
-
-## 认证流程说明
-
-### 第一次访问
-
-```
-用户访问 http://<host>:<port>/
-     ↓
-服务器返回带 token 的 URL: http://<host>:<port>/?token=<launch_token>
-     ↓
-用户访问带 token 的 URL
-     ↓
-服务器验证 token，设置签名 cookie，重定向到清洁 URL
-```
-
-### 后续访问
-
-```
-用户访问 http://<host>:<port>/
-     ↓
-携带 cookie: dsh-auth-<authority_hash>=<signed_cookie>
-     ↓
-服务器验证 cookie，允许访问
-```
+Default credentials: `username=root`, `password=root`.
 
 ## API
 
-### `apply(ctx: Context): void`
+### `isAuthorized(req, username, password): boolean`
 
-插件入口函数，执行限制解除补丁并确保认证流程正常。
-
-### 导出的认证函数
+Validates the `Authorization` header against the configured credentials.
 
 ```typescript
-import { isAuthorized, sendUnauthorized } from '@diaoyunxi/dsh-host-auth-unrestricted'
+import { isAuthorized } from '@deepseek-ai/dsh-host-auth'
 
-// 验证请求凭据
 const authorized = isAuthorized(req, 'root', 'root')
+```
 
-// 发送 401 响应
+### `sendUnauthorized(res, realm?): void`
+
+Writes a 401 Unauthorized response with a `WWW-Authenticate` header.
+
+```typescript
+import { sendUnauthorized } from '@deepseek-ai/dsh-host-auth'
+
 sendUnauthorized(res, 'DeepSeek Harness')
 ```
 
-## 安装
+### `isTrustedHost(req, trustedHosts): boolean`
 
-```bash
-# 添加到 DSH 插件列表
-dsh plugin --profile web add @diaoyunxi/dsh-host-auth-unrestricted
+Checks if the request comes from a trusted host.
+
+```typescript
+import { isTrustedHost } from '@deepseek-ai/dsh-host-auth'
+
+const isTrusted = isTrustedHost(req, ['example.com', '*.mydomain.com'])
 ```
 
-## 配置
+## Configuration
 
-在 `cordis.patch.yml` 中添加：
+### Trusted Hosts Bypass
+
+When you configure `trustedHosts`, requests from those domains will skip
+authentication entirely. This is useful for public deployments where you want
+to access the Web GUI without token/cookie exchange.
 
 ```yaml
+# In your cordis.patch.yml or plugin configuration
 - insert:
-    - id: host-auth-unrestricted
-      name: '@diaoyunxi/dsh-host-auth-unrestricted'
+    - id: host-auth
+      name: '@deepseek-ai/dsh-host-auth'
+      config:
+        trustedHosts:
+          - "mydomain.com"          # exact match
+          - "*.example.com"         # wildcard match
+          - "192.168.1.100"         # IP address
 ```
 
-## 安全说明
+Supported formats:
+- Exact domain: `"example.com"`
+- Wildcard: `"*.example.com"` (matches any subdomain)
+- IP address: `"192.168.1.1"`
+- With port: `"example.com:8080"`
 
-- 密码认证仍然生效，未授权访问仍会被拒绝
-- token/cookie 认证流程保持完整
-- 解除绑定限制后，服务可被局域网内其他设备访问
+### Plugin Options
 
-## 版本历史
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `trustedHosts` | `string[]` | `[]` | List of trusted hosts to bypass auth |
+| `forceHostZero` | `boolean` | `true` | Force host binding to `0.0.0.0` |
 
-- `0.1.0-rc.1` — 初始版本，解除 0.0.0.0 绑定限制
+## Security Notes
+
+- When `trustedHosts` is configured, requests from those hosts skip ALL authentication
+- Credentials are hardcoded at composition time; changing them requires rebuilding the bundle
+- For production deployments, consider using environment variables or a secrets manager
+- This implementation uses simple string comparison; for high-security requirements, use constant-time comparison
+- The `0.0.0.0` binding allows network-wide access — ensure proper firewall rules are in place
+
+## Usage in frontend-static
+
+When mounting `frontend-static` with auth enabled:
+
+```typescript
+ctx.plugin(FrontendStatic, {
+  distIndex: '/path/to/index.html',
+  auth: { username: 'root', password: 'root' }
+})
+```
+
+## Installation
+
+```bash
+dsh plugin --profile web add @deepseek-ai/dsh-host-auth
+```
+
+## Version History
+
+- `0.2.0-rc.1` — Added binding restriction removal and trusted hosts bypass
+- `0.1.0-rc.8` — Added dsh.bundle support for Cordis plugin format

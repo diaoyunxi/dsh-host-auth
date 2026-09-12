@@ -1,12 +1,22 @@
-# @diaoyunxi/dsh-host-auth-unrestricted — 解除 DSH 0.0.0.0 绑定限制的认证插件 bundle
+# @deepseek-ai/dsh-host-auth — HTTP Basic Auth + Binding Restriction Removal Cordis plugin bundle
 #
-# 本插件解除以下写死限制：
-# 1. dsh-web-app: 硬编码禁止 0.0.0.0 绑定（"intentionally not supported yet for safety"）
+# Registers the host-auth plugin into the Cordis loader tree.
+# This bundle provides:
+# - HTTP Basic Auth utilities (isAuthorized, sendUnauthorized)
+# - Removal of 0.0.0.0 binding restriction
+# - Trusted hosts configuration for authentication bypass
 #
-# 保留原有认证逻辑：
-# - HTTP Basic Auth 密码认证
-# - browser-session token/cookie 认证流程
+# 配置示例 (在 cordis patch 中使用):
+# ```yaml
+# - insert:
+#     - id: host-auth
+#       name: '@deepseek-ai/dsh-host-auth'
+#       config:
+#         trustedHosts:
+#           - "mydomain.com"
+#           - "*.example.com"
+# ```
 
 - insert:
-    - id: host-auth-unrestricted
-      name: '@diaoyunxi/dsh-host-auth-unrestricted'
+    - id: host-auth
+      name: '@deepseek-ai/dsh-host-auth'
