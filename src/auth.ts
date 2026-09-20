@@ -1,15 +1,24 @@
 /**
  * HTTP Basic Auth 验证工具函数
+ * 
+ * @security 安全注意事项：
+ * - 使用恒定时间比较防止时序攻击（已实现）
+ * - 必须通过环境变量提供凭据，禁止硬编码
+ * - 生产环境必须使用强密码
  */
 
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { timingSafeEqual } from 'node:crypto'
 
 /**
  * 验证请求的 Authorization 头是否匹配配置的凭据
+ * 
  * @param req - HTTP 请求对象
- * @param username - 期望的用户名
- * @param password - 期望的密码
+ * @param username - 期望的用户名（应从环境变量读取）
+ * @param password - 期望的密码（应从环境变量读取）
  * @returns 如果凭据匹配返回 true，否则返回 false
+ * 
+ * @security 使用 timingSafeEqual 进行恒定时间比较，防止时序攻击
  */
 export function isAuthorized(req: IncomingMessage, username: string, password: string): boolean {
   const authHeader = req.headers.authorization
@@ -27,7 +36,18 @@ export function isAuthorized(req: IncomingMessage, username: string, password: s
   if (colonIndex === -1) return false
   const providedUsername = decoded.slice(0, colonIndex)
   const providedPassword = decoded.slice(colonIndex + 1)
-  return providedUsername === username && providedPassword === password
+  
+  // 使用恒定时间比较防止时序攻击
+  const usernameMatch = timingSafeEqual(
+    Buffer.from(providedUsername),
+    Buffer.from(username)
+  )
+  const passwordMatch = timingSafeEqual(
+    Buffer.from(providedPassword),
+    Buffer.from(password)
+  )
+  
+  return usernameMatch && passwordMatch
 }
 
 /**
