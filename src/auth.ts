@@ -3,9 +3,11 @@
  */
 
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { timingSafeEqual } from 'node:crypto'
 
 /**
  * 验证请求的 Authorization 头是否匹配配置的凭据
+ * 使用 timingSafeEqual 防止时序攻击 (CWE-208)
  * @param req - HTTP 请求对象
  * @param username - 期望的用户名
  * @param password - 期望的密码
@@ -27,7 +29,17 @@ export function isAuthorized(req: IncomingMessage, username: string, password: s
   if (colonIndex === -1) return false
   const providedUsername = decoded.slice(0, colonIndex)
   const providedPassword = decoded.slice(colonIndex + 1)
-  return providedUsername === username && providedPassword === password
+
+  // 时序安全比较：防止攻击者通过响应时间差异逐字符猜测凭据
+  const usernameMatch = timingSafeEqual(
+    Buffer.from(providedUsername, 'utf8'),
+    Buffer.from(username, 'utf8')
+  )
+  const passwordMatch = timingSafeEqual(
+    Buffer.from(providedPassword, 'utf8'),
+    Buffer.from(password, 'utf8')
+  )
+  return usernameMatch && passwordMatch
 }
 
 /**
