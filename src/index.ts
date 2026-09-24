@@ -10,6 +10,10 @@
  *
  * 默认凭据: username=`root`, password=`root`
  *
+ * ⚠️ **安全警告**: 默认凭据 `root:root` 仅供开发环境使用。
+ * 生产部署**必须**通过配置修改为强密码，否则认证形同虚设。
+ * 使用 `warnIfDefaultCredentials()` 在启动时检测并输出警告。
+ *
  * @module @deepseek-ai/dsh-host-auth
  */
 
@@ -22,6 +26,40 @@ export const name = 'host-auth'
 
 /** No services required; this plugin provides utilities only. */
 export const inject: string[] = []
+
+/** 默认凭据常量，用于检测是否仍在使用不安全的初始配置 */
+const DEFAULT_USERNAME = 'root'
+const DEFAULT_PASSWORD = 'root'
+
+/**
+ * 检查当前凭据是否为默认弱凭据，若是则输出安全警告。
+ *
+ * 调用方应在服务启动时调用此函数，确保生产环境不会意外使用
+ * `root:root` 默认凭据，从而避免未授权访问风险。
+ *
+ * @param username - 当前配置的用户名
+ * @param password - 当前配置的密码
+ * @returns 如果使用的是默认凭据返回 true，否则返回 false
+ *
+ * @example
+ * ```ts
+ * import { warnIfDefaultCredentials } from '@deepseek-ai/dsh-host-auth'
+ *
+ * // 在 HTTP 服务启动前调用
+ * warnIfDefaultCredentials(config.username, config.password)
+ * ```
+ */
+export function warnIfDefaultCredentials(username: string, password: string): boolean {
+  if (username === DEFAULT_USERNAME && password === DEFAULT_PASSWORD) {
+    console.warn(
+      '[dsh-host-auth] ⚠️  WARNING: Using default credentials (root:root). ' +
+      'This is insecure and MUST be changed before production deployment. ' +
+      'Configure custom username and password in your plugin settings.',
+    )
+    return true
+  }
+  return false
+}
 
 /**
  * Apply the host-auth plugin into the Cordis context.
