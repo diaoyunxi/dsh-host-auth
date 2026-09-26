@@ -1,3 +1,6 @@
+/** Auth rate limit: max attempts per minute */
+const AUTH_RATE_LIMIT_PER_MINUTE = 10;
+
 /**
  * @deepseek-ai/dsh-host-auth — HTTP Basic Auth Cordis 插件
  *
