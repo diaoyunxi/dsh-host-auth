@@ -44,6 +44,22 @@ describe('isAuthorized', () => {
     const req = { headers: { authorization: `Basic ${encoded}` } } as unknown as IncomingMessage
     expect(isAuthorized(req, 'user', 'pass:word')).toBe(true)
   })
+
+  it('does not throw when provided username length differs from expected (DoS regression)', () => {
+    // timingSafeEqual throws TypeError when buffer lengths differ.
+    // Previously this would crash the process instead of returning false.
+    const encoded = Buffer.from('a:bbbbbbbbbb').toString('base64')
+    const req = { headers: { authorization: `Basic ${encoded}` } } as unknown as IncomingMessage
+    expect(() => isAuthorized(req, 'root', 'root')).not.toThrow()
+    expect(isAuthorized(req, 'root', 'root')).toBe(false)
+  })
+
+  it('does not throw when provided password length differs from expected (DoS regression)', () => {
+    const encoded = Buffer.from('root:x').toString('base64')
+    const req = { headers: { authorization: `Basic ${encoded}` } } as unknown as IncomingMessage
+    expect(() => isAuthorized(req, 'root', 'longpassword')).not.toThrow()
+    expect(isAuthorized(req, 'root', 'longpassword')).toBe(false)
+  })
 })
 
 describe('sendUnauthorized', () => {

@@ -37,15 +37,23 @@ export function isAuthorized(req: IncomingMessage, username: string, password: s
   const providedUsername = decoded.slice(0, colonIndex)
   const providedPassword = decoded.slice(colonIndex + 1)
   
-  // 使用恒定时间比较防止时序攻击
-  const usernameMatch = timingSafeEqual(
-    Buffer.from(providedUsername),
-    Buffer.from(username)
-  )
-  const passwordMatch = timingSafeEqual(
-    Buffer.from(providedPassword),
-    Buffer.from(password)
-  )
+  const usernameBuf = Buffer.from(providedUsername)
+  const expectedUsernameBuf = Buffer.from(username)
+  const passwordBuf = Buffer.from(providedPassword)
+  const expectedPasswordBuf = Buffer.from(password)
+  
+  // 安全恒定时间比较：先比较长度，不等长时仍执行 dummy 比较以保持恒定时间开销
+  // 防止 timingSafeEqual 在长度不等时抛出 TypeError 导致进程崩溃 (DoS)
+  const usernameLenMatch = usernameBuf.length === expectedUsernameBuf.length
+  const passwordLenMatch = passwordBuf.length === expectedPasswordBuf.length
+  
+  // 长度不等时，将 provided 与 expected 进行 dummy 比较（耗时恒定），然后返回 false
+  const usernameMatch = usernameLenMatch
+    ? timingSafeEqual(usernameBuf, expectedUsernameBuf)
+    : (timingSafeEqual(expectedUsernameBuf, expectedUsernameBuf), false)
+  const passwordMatch = passwordLenMatch
+    ? timingSafeEqual(passwordBuf, expectedPasswordBuf)
+    : (timingSafeEqual(expectedPasswordBuf, expectedPasswordBuf), false)
   
   return usernameMatch && passwordMatch
 }
