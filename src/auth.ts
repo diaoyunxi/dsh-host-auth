@@ -49,13 +49,23 @@ export function isAuthorized(req: IncomingMessage, username: string, password: s
 }
 
 /**
+ * 净化 realm 字符串，防止 HTTP 头注入攻击 (CWE-113)。
+ * 移除双引号、回车符、换行符等可破坏 HTTP 头结构的字符。
+ * @param realm - 原始认证域字符串
+ * @returns 净化后的安全字符串
+ */
+function sanitizeRealm(realm: string): string {
+  // 移除双引号（会破坏 realm="..." 语法）和 CR/LF（会导致头注入）
+  return realm.replace(/["\r\n]/g, '')
+}
+
+/**
  * 发送 401 Unauthorized 响应，包含 WWW-Authenticate 头
  * @param res - HTTP 响应对象
  * @param realm - 认证域（默认为 "DeepSeek Harness"）
  */
 export function sendUnauthorized(res: ServerResponse, realm: string = 'DeepSeek Harness'): void {
-  // Sanitize realm to prevent HTTP header injection via \r\n
-  const safeRealm = realm.replace(/[\r\n]/g, '')
+  const safeRealm = sanitizeRealm(realm)
   res.writeHead(401, {
     'content-type': 'text/plain; charset=utf-8',
     'www-authenticate': `Basic realm="${safeRealm}"`,
