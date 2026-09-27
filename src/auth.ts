@@ -1,5 +1,8 @@
 /**
  * HTTP Basic Auth 验证工具函数
+ *
+ * 安全说明：凭据比较使用 `crypto.timingSafeEqual()` 进行恒定时间比较，
+ * 防止通过响应时间差异逐字符猜测用户名或密码的时序攻击 (CWE-208)。
  */
 
 import { timingSafeEqual } from 'node:crypto'
