@@ -2,7 +2,25 @@
  * HTTP Basic Auth 验证工具函数
  */
 
+import { timingSafeEqual } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
+
+/**
+ * 常量时间字符串比较，防止时序攻击
+ * @param a - 第一个字符串
+ * @param b - 第二个字符串
+ * @returns 如果两个字符串相等返回 true，否则返回 false
+ */
+function constantTimeEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(a, 'utf8')
+  const bufB = Buffer.from(b, 'utf8')
+  if (bufA.length !== bufB.length) {
+    // Still compare with a fixed buffer to avoid length leaking via timing
+    timingSafeEqual(bufA, Buffer.alloc(bufA.length))
+    return false
+  }
+  return timingSafeEqual(bufA, bufB)
+}
 
 /**
  * 验证请求的 Authorization 头是否匹配配置的凭据
@@ -27,7 +45,7 @@ export function isAuthorized(req: IncomingMessage, username: string, password: s
   if (colonIndex === -1) return false
   const providedUsername = decoded.slice(0, colonIndex)
   const providedPassword = decoded.slice(colonIndex + 1)
-  return providedUsername === username && providedPassword === password
+  return constantTimeEqual(providedUsername, username) && constantTimeEqual(providedPassword, password)
 }
 
 /**
@@ -36,9 +54,11 @@ export function isAuthorized(req: IncomingMessage, username: string, password: s
  * @param realm - 认证域（默认为 "DeepSeek Harness"）
  */
 export function sendUnauthorized(res: ServerResponse, realm: string = 'DeepSeek Harness'): void {
+  // Sanitize realm to prevent HTTP header injection via \r\n
+  const safeRealm = realm.replace(/[\r\n]/g, '')
   res.writeHead(401, {
     'content-type': 'text/plain; charset=utf-8',
-    'www-authenticate': `Basic realm="${realm}"`,
+    'www-authenticate': `Basic realm="${safeRealm}"`,
   })
   res.end('Authorization required')
 }
