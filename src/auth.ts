@@ -10,6 +10,9 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { timingSafeEqual } from 'node:crypto'
 
+// Token 最大有效时间 (1小时)，防止过期 token 被重放
+const MAX_TOKEN_AGE_SECONDS = 3600;
+
 /**
  * 验证请求的 Authorization 头是否匹配配置的凭据
  * 
