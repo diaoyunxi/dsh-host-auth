@@ -20,7 +20,29 @@ import { timingSafeEqual } from 'node:crypto'
  * 
  * @security 使用 timingSafeEqual 进行恒定时间比较，防止时序攻击
  */
+// ---------------------------------------------------------------------------
+// Rate limiting (CWE-307)
+// ---------------------------------------------------------------------------
+const RATE_WINDOW_MS = 60_000
+const MAX_ATTEMPTS = 10
+const _attempts = new Map<string, { count: number; resetAt: number }>()
+
+function _isRateLimited(ip: string): boolean {
+  const now = Date.now()
+  const entry = _attempts.get(ip)
+  if (!entry || now > entry.resetAt) {
+    _attempts.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS })
+    return false
+  }
+  entry.count++
+  return entry.count > MAX_ATTEMPTS
+}
+
 export function isAuthorized(req: IncomingMessage, username: string, password: string): boolean {
+  // Rate limit check
+  const clientIp = (req.socket?.remoteAddress ?? 'unknown')
+  if (_isRateLimited(clientIp)) return false
+
   const authHeader = req.headers.authorization
   if (authHeader === undefined) return false
   // HTTP Basic Auth: "Basic base64(username:password)"
