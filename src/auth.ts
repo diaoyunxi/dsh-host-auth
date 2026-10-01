@@ -38,14 +38,13 @@ export function isAuthorized(req: IncomingMessage, username: string, password: s
   const providedPassword = decoded.slice(colonIndex + 1)
   
   // 使用恒定时间比较防止时序攻击
-  const usernameMatch = timingSafeEqual(
-    Buffer.from(providedUsername),
-    Buffer.from(username)
-  )
-  const passwordMatch = timingSafeEqual(
-    Buffer.from(providedPassword),
-    Buffer.from(password)
-  )
+  const providedUsernameBuf = Buffer.from(providedUsername);
+  const usernameBuf = Buffer.from(username);
+  const usernameMatch = providedUsernameBuf.length === usernameBuf.length && timingSafeEqual(providedUsernameBuf, usernameBuf);
+  
+  const providedPasswordBuf = Buffer.from(providedPassword);
+  const passwordBuf = Buffer.from(password);
+  const passwordMatch = providedPasswordBuf.length === passwordBuf.length && timingSafeEqual(providedPasswordBuf, passwordBuf);
   
   return usernameMatch && passwordMatch
 }
