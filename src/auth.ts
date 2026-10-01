@@ -11,6 +11,27 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { timingSafeEqual } from 'node:crypto'
 
 /**
+ * 恒定时间比较两个字符串是否相等
+ *
+ * @param a - 待比较字符串 A
+ * @param b - 待比较字符串 B
+ * @returns 两个字符串是否相等
+ *
+ * @security Node 的 timingSafeEqual 在两个 Buffer 长度不一致时会抛出 RangeError。
+ * 因此这里先比较字节长度，长度不同则直接返回 false：
+ * 长度不同本身即说明内容不匹配，且提前返回只泄露长度信息（长度对凭据校验无关紧要），
+ * 对相同长度的比较仍走恒定时间路径，恒定时间语义依然成立，
+ * 同时避免未捕获异常导致的 500 / 进程崩溃（DoS）。
+ */
+function safeEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(a)
+  const bufB = Buffer.from(b)
+  // 长度不一致时直接判定为不匹配，避免 timingSafeEqual 抛出 RangeError
+  if (bufA.byteLength !== bufB.byteLength) return false
+  return timingSafeEqual(bufA, bufB)
+}
+
+/**
  * 验证请求的 Authorization 头是否匹配配置的凭据
  * 
  * @param req - HTTP 请求对象
@@ -37,15 +58,9 @@ export function isAuthorized(req: IncomingMessage, username: string, password: s
   const providedUsername = decoded.slice(0, colonIndex)
   const providedPassword = decoded.slice(colonIndex + 1)
   
-  // 使用恒定时间比较防止时序攻击
-  const usernameMatch = timingSafeEqual(
-    Buffer.from(providedUsername),
-    Buffer.from(username)
-  )
-  const passwordMatch = timingSafeEqual(
-    Buffer.from(providedPassword),
-    Buffer.from(password)
-  )
+  // 使用恒定时间比较防止时序攻击（safeEqual 已处理长度不一致的情况，避免抛异常）
+  const usernameMatch = safeEqual(providedUsername, username)
+  const passwordMatch = safeEqual(providedPassword, password)
   
   return usernameMatch && passwordMatch
 }

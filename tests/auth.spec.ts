@@ -44,6 +44,29 @@ describe('isAuthorized', () => {
     const req = { headers: { authorization: `Basic ${encoded}` } } as unknown as IncomingMessage
     expect(isAuthorized(req, 'user', 'pass:word')).toBe(true)
   })
+
+  // 回归测试：timingSafeEqual 在 Buffer 长度不一致时会抛出 RangeError，
+  // 修复后应返回 false 而不是抛异常
+  it('returns false without throwing when username length differs', () => {
+    const encoded = Buffer.from('a-much-longer-username:root').toString('base64')
+    const req = { headers: { authorization: `Basic ${encoded}` } } as unknown as IncomingMessage
+    expect(() => isAuthorized(req, 'root', 'root')).not.toThrow()
+    expect(isAuthorized(req, 'root', 'root')).toBe(false)
+  })
+
+  it('returns false without throwing when password length differs', () => {
+    const encoded = Buffer.from('root:a-much-longer-password').toString('base64')
+    const req = { headers: { authorization: `Basic ${encoded}` } } as unknown as IncomingMessage
+    expect(() => isAuthorized(req, 'root', 'root')).not.toThrow()
+    expect(isAuthorized(req, 'root', 'root')).toBe(false)
+  })
+
+  it('returns false without throwing when both lengths differ', () => {
+    const encoded = Buffer.from('someone-else:another-secret').toString('base64')
+    const req = { headers: { authorization: `Basic ${encoded}` } } as unknown as IncomingMessage
+    expect(() => isAuthorized(req, 'root', 'root')).not.toThrow()
+    expect(isAuthorized(req, 'root', 'root')).toBe(false)
+  })
 })
 
 describe('sendUnauthorized', () => {
