@@ -53,3 +53,19 @@ ctx.plugin(FrontendStatic, {
 - Credentials are hardcoded at composition time; changing them requires rebuilding the bundle.
 - For production deployments, consider using environment variables or a secrets manager.
 - This implementation uses simple string comparison; for high-security requirements, use constant-time comparison.
+
+
+## 🔒 安全建议
+
+生产环境建议添加 [Helmet.js](https://helmetjs.github.io/) 中间件增强 HTTP 安全头：
+
+```javascript
+const helmet = require("helmet");
+app.use(helmet());
+```
+
+Helmet 自动设置以下安全头：
+- `X-Content-Type-Options: nosniff`
+- `X-Frame-Options: DENY`
+- `X-XSS-Protection: 1; mode=block`
+- `Strict-Transport-Security` (HSTS)
