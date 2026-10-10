@@ -11,6 +11,23 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { timingSafeEqual } from 'node:crypto'
 
 /**
+ * 恒定时间比较两个字符串，即使长度不同也不会泄漏长度信息
+ * 
+ * @security 当长度不同时，仍然进行完整比较以避免时序泄漏
+ */
+function constantTimeEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(a)
+  const bufB = Buffer.from(b)
+  // 长度不同时，使用较长 buffer 与自身比较（恒定时间返回 false）
+  // 这避免了 timingSafeEqual 在长度不同时立即返回导致的信息泄漏
+  if (bufA.length !== bufB.length) {
+    timingSafeEqual(bufA, bufA) // 消耗相同时间
+    return false
+  }
+  return timingSafeEqual(bufA, bufB)
+}
+
+/**
  * 验证请求的 Authorization 头是否匹配配置的凭据
  * 
  * @param req - HTTP 请求对象
@@ -18,7 +35,7 @@ import { timingSafeEqual } from 'node:crypto'
  * @param password - 期望的密码（应从环境变量读取）
  * @returns 如果凭据匹配返回 true，否则返回 false
  * 
- * @security 使用 timingSafeEqual 进行恒定时间比较，防止时序攻击
+ * @security 使用恒定时间比较防止时序攻击
  */
 export function isAuthorized(req: IncomingMessage, username: string, password: string): boolean {
   const authHeader = req.headers.authorization
@@ -37,28 +54,9 @@ export function isAuthorized(req: IncomingMessage, username: string, password: s
   const providedUsername = decoded.slice(0, colonIndex)
   const providedPassword = decoded.slice(colonIndex + 1)
   
-  // 使用恒定时间比较防止时序攻击
-  const usernameMatch = timingSafeEqual(
-    Buffer.from(providedUsername),
-    Buffer.from(username)
-  )
-  const passwordMatch = timingSafeEqual(
-    Buffer.from(providedPassword),
-    Buffer.from(password)
-  )
+  // 使用恒定时间比较防止时序攻击（含长度保护）
+  const usernameMatch = constantTimeEqual(providedUsername, username)
+  const passwordMatch = constantTimeEqual(providedPassword, password)
   
   return usernameMatch && passwordMatch
-}
-
-/**
- * 发送 401 Unauthorized 响应，包含 WWW-Authenticate 头
- * @param res - HTTP 响应对象
- * @param realm - 认证域（默认为 "DeepSeek Harness"）
- */
-export function sendUnauthorized(res: ServerResponse, realm: string = 'DeepSeek Harness'): void {
-  res.writeHead(401, {
-    'content-type': 'text/plain; charset=utf-8',
-    'www-authenticate': `Basic realm="${realm}"`,
-  })
-  res.end('Authorization required')
 }
