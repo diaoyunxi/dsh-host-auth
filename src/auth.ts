@@ -85,3 +85,21 @@ export function isAuthorized(req: IncomingMessage, username: string, password: s
   
   return usernameMatch && passwordMatch
 }
+
+/**
+ * 向客户端发送 401 Unauthorized 响应，附带 WWW-Authenticate 头触发浏览器登录弹窗
+ *
+ * @param res - HTTP 响应对象
+ * @param realm - HTTP Basic Auth realm 名称，默认 "dsh-host-auth"
+ *
+ * @security realm 参数会拼入响应头，注意防止 header injection
+ */
+export function sendUnauthorized(res: ServerResponse, realm = 'dsh-host-auth'): void {
+  // 校验 realm 不含换行符，防止 HTTP header injection (CWE-113)
+  const safeRealm = realm.replace(/[\r\n]/g, '')
+  res.writeHead(401, {
+    'WWW-Authenticate': `Basic realm="${safeRealm}", charset="UTF-8"`,
+    'Content-Type': 'text/plain; charset=utf-8',
+  })
+  res.end('401 Unauthorized')
+}
