@@ -45,9 +45,26 @@ function constantTimeEqual(a: string, b: string): boolean {
 // ---------------------------------------------------------------------------
 const RATE_WINDOW_MS = 60_000
 const MAX_ATTEMPTS = 10
+/** Map 条目上限，超过后清理过期条目防止内存无限增长 (CWE-770) */
+const MAX_ATTEMPT_ENTRIES = 1000
 const _attempts = new Map<string, { count: number; resetAt: number }>()
 
+/**
+ * 清理已过期的速率限制条目。
+ * 当 Map 大小超过 MAX_ATTEMPT_ENTRIES 时触发，防止长期运行后内存泄漏。
+ */
+function _cleanupExpiredAttempts(): void {
+  if (_attempts.size <= MAX_ATTEMPT_ENTRIES) return
+  const now = Date.now()
+  for (const [ip, entry] of _attempts) {
+    if (now > entry.resetAt) {
+      _attempts.delete(ip)
+    }
+  }
+}
+
 function _isRateLimited(ip: string): boolean {
+  _cleanupExpiredAttempts()
   const now = Date.now()
   const entry = _attempts.get(ip)
   if (!entry || now > entry.resetAt) {
