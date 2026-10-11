@@ -45,9 +45,26 @@ function constantTimeEqual(a: string, b: string): boolean {
 // ---------------------------------------------------------------------------
 const RATE_WINDOW_MS = 60_000
 const MAX_ATTEMPTS = 10
+/** Map 条目上限，超过后清理过期条目防止内存无限增长 (CWE-770) */
+const MAX_ATTEMPT_ENTRIES = 1000
 const _attempts = new Map<string, { count: number; resetAt: number }>()
 
+/**
+ * 清理已过期的速率限制条目。
+ * 当 Map 大小超过 MAX_ATTEMPT_ENTRIES 时触发，防止长期运行后内存泄漏。
+ */
+function _cleanupExpiredAttempts(): void {
+  if (_attempts.size <= MAX_ATTEMPT_ENTRIES) return
+  const now = Date.now()
+  for (const [ip, entry] of _attempts) {
+    if (now > entry.resetAt) {
+      _attempts.delete(ip)
+    }
+  }
+}
+
 function _isRateLimited(ip: string): boolean {
+  _cleanupExpiredAttempts()
   const now = Date.now()
   const entry = _attempts.get(ip)
   if (!entry || now > entry.resetAt) {
@@ -84,4 +101,22 @@ export function isAuthorized(req: IncomingMessage, username: string, password: s
   const passwordMatch = constantTimeEqual(providedPassword, password)
   
   return usernameMatch && passwordMatch
+}
+
+/**
+ * 向客户端发送 401 Unauthorized 响应，附带 WWW-Authenticate 头触发浏览器登录弹窗
+ *
+ * @param res - HTTP 响应对象
+ * @param realm - HTTP Basic Auth realm 名称，默认 "dsh-host-auth"
+ *
+ * @security realm 参数会拼入响应头，注意防止 header injection
+ */
+export function sendUnauthorized(res: ServerResponse, realm = 'dsh-host-auth'): void {
+  // 校验 realm 不含换行符，防止 HTTP header injection (CWE-113)
+  const safeRealm = realm.replace(/[\r\n]/g, '')
+  res.writeHead(401, {
+    'WWW-Authenticate': `Basic realm="${safeRealm}", charset="UTF-8"`,
+    'Content-Type': 'text/plain; charset=utf-8',
+  })
+  res.end('401 Unauthorized')
 }
