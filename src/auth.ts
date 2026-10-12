@@ -50,38 +50,53 @@ const _attempts = new Map<string, { count: number; resetAt: number }>()
 function _isRateLimited(ip: string): boolean {
   const now = Date.now()
   const entry = _attempts.get(ip)
-  if (!entry || now > entry.resetAt) {
-    _attempts.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS })
-    return false
-  }
-  entry.count++
+  if (!entry || now > entry.resetAt) return false
   return entry.count > MAX_ATTEMPTS
 }
 
+/**
+ * 仅在认证失败时记录一次失败尝试。
+ * 之前 _isRateLimited 被设计成"检查并自增"，导致每一次请求（包括成功的）
+ * 都计入失败次数——一个正常用户 60 秒内连续发 11 个请求就会被锁 60 秒。
+ */
+function _recordFailure(ip: string): void {
+  const now = Date.now()
+  const entry = _attempts.get(ip)
+  if (!entry || now > entry.resetAt) {
+    _attempts.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS })
+  } else {
+    entry.count++
+  }
+}
+
 export function isAuthorized(req: IncomingMessage, username: string, password: string): boolean {
-  // Rate limit check
   const clientIp = (req.socket?.remoteAddress ?? 'unknown')
   if (_isRateLimited(clientIp)) return false
 
   const authHeader = req.headers.authorization
-  if (authHeader === undefined) return false
+  if (authHeader === undefined) { _recordFailure(clientIp); return false }
   // HTTP Basic Auth: "Basic base64(username:password)"
-  if (!authHeader.startsWith('Basic ')) return false
+  if (!authHeader.startsWith('Basic ')) { _recordFailure(clientIp); return false }
   const encoded = authHeader.slice(6)
   let decoded: string
   try {
     decoded = Buffer.from(encoded, 'base64').toString('utf8')
   } catch {
+    _recordFailure(clientIp)
     return false
   }
   const colonIndex = decoded.indexOf(':')
-  if (colonIndex === -1) return false
+  if (colonIndex === -1) { _recordFailure(clientIp); return false }
   const providedUsername = decoded.slice(0, colonIndex)
   const providedPassword = decoded.slice(colonIndex + 1)
-  
+
   // 使用恒定时间比较防止时序攻击（含长度保护）
   const usernameMatch = constantTimeEqual(providedUsername, username)
   const passwordMatch = constantTimeEqual(providedPassword, password)
-  
-  return usernameMatch && passwordMatch
+
+  if (!usernameMatch || !passwordMatch) {
+    _recordFailure(clientIp)
+    return false
+  }
+  return true
 }
